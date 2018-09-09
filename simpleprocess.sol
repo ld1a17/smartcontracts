@@ -165,7 +165,7 @@ contract test {
             payable 
             public
      {
-         //require(stage >= Stage.Auctionstart );
+         require(stage >= Stage.Auctionstart );
          ObiligorBank = _payerbank;
      }
      
@@ -180,13 +180,13 @@ contract test {
       }
       
 /// Inform of BPO estiblishment
-      function receivebank(address _receivebank)
+      function sellerbank(address _sellerbank)
            payable
            public
            
      {
-         //  require(stage >= Stage.Auctionstart );
-           RecipientBank = _receivebank;
+           require(stage >= Stage.Auctionstart );
+           RecipientBank = _sellerbank;
      }
       
       function BPOestiblishment(uint256 _num)
