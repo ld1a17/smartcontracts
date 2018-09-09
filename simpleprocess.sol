@@ -12,8 +12,6 @@ contract test {
   address ObiligorBank;
   uint num;
   uint totalprice;
-  
-
 
   Stage public stage;
 
