@@ -1,4 +1,3 @@
-
 pragma solidity ^0.4.21;
 
 contract test {
@@ -12,11 +11,13 @@ contract test {
   address RecipientBank;
   address ObiligorBank;
   uint num;
+  uint totalprice;
+  
 
 
   Stage public stage;
 
-  enum Stage { Deployed, Created, Auctionstart, Auction, Locked, Inactive}
+  enum Stage { Deployed, Created, Auctionstart, Auction, Payment}
 
     struct MarketToken {
 
@@ -35,7 +36,7 @@ contract test {
 
     struct Shipment {
         uint id;
-        address courier;
+        string courier;
         uint deliveryprice;
         address owner;
         address buyer;
@@ -50,22 +51,19 @@ contract test {
   event goodsinfo(address owner, uint num,string  _goods,uint _quantity,uint id, uint _price);
   event PurchaseOrder(address owner, uint num, address buyer, uint orderdate );
   event ConfirmOrder(address owner, uint num, address buyer, uint starteddate);
-  event RequestSent(address owner, uint num, address buyer, uint requestdate);
+  event RequestSent(address owner, uint num, uint price, address buyer, uint requestdate);
   event OB(address ObiligorBank, uint num);
   event Inform(address RecipientBank, uint num, uint estiblishment_date);
-  event InvoiceSent1(address buyer, uint num, address courier, uint deliveryprice, uint deliverydate);
-  event InvoiceSent2(address owner, uint num, address courier, uint deliveryprice, uint deliverydate);
-  event InvoiceSent3(address owner, uint num, uint quantity, uint price,  uint deliveryprice,uint deliverydate);
-  event OrderDelivered(address buyer, uint num, uint delivey_date, address courier);
-  event transferFund(uint num, uint value, uint time);
+  event InvoiceSent1(uint num,uint id, string courier, uint deliveryprice, uint deliverydate);
+  event InvoiceSent2(address owner, uint num, uint quantity, uint price,  uint deliveryprice,uint deliverydate,uint totalprice);
+  event ItemReceived(uint num);
+  event transferFund(uint num, uint value,uint balance, uint time);
 
 
-  constructor(address _buyer, address _RecipientBank, address _ObiligorBank) public payable {
+  constructor() public payable {
     owner = msg.sender;
-    buyer = _buyer;
-    RecipientBank = _RecipientBank;
-    ObiligorBank = _ObiligorBank;
   }
+  
 
     modifier onlyOwner {
         require(msg.sender == owner);
@@ -89,8 +87,7 @@ contract test {
         require(stage == _stage);
         _;
     }
-
-
+    
     function uploadgoods(
         string _goods,
         uint _quantity,
@@ -113,32 +110,42 @@ contract test {
 ///fillOrder
 
 ///get information of goods
-    function getInfo(uint _num) public view returns (string, uint, uint, address) {
-          require(stage <= Stage.Locked);
+    function getInfo(uint _num)
+        public 
+        view 
+        onlyBuyer 
+        returns (string, uint, uint, address) 
+    {
           MarketToken memory _goods = marketTokens[_num];
           return (_goods.goods, _goods.id, _goods.price, _goods.owner);
     }
+    
+    function Deal(address _buyer) public {
+        buyer = _buyer;
+   }
 
 ///buyer fill order: num addr name
     function sendOrder(uint _num, string _addr, string _name)
             public
             onlyBuyer
-            inStage(Stage.Created)
+            inStage(Stage.Deployed)
     {
 
          /// Create the order register
             orders[_num] = Buyerorder(_num, _addr, _name);
+            stage = Stage.Created;
 
             emit PurchaseOrder(owner, _num, msg.sender, block.timestamp);
 
      }
 
 ///Seller Accept Order
-     function confirmoOrder(uint256 _num)
+     function confirmOrder(uint256 _num)
             public
             onlyOwner
             inStage(Stage.Created)
       {
+            require(num!=0);
             stage = Stage.Auction;
 
             emit ConfirmOrder(msg.sender, _num, buyer, block.timestamp);
@@ -148,101 +155,108 @@ contract test {
      function sendRequest(uint256 _num)
             public
             onlyBuyer
-            inStage(Stage.Auctionstart)
+            inStage(Stage.Auction)
      {
 
-            emit RequestSent(owner, _num, msg.sender, block.timestamp);
+            emit RequestSent(owner, _num, marketTokens[_num].price, buyer, block.timestamp);
+            stage = Stage.Auctionstart;
      }
+/// Bank accept Request from buyer
 
-     function acceptRequest(uint256 _num)
+     function payerbank(address _payerbank) 
+            payable 
+            public
+     {
+         //require(stage >= Stage.Auctionstart );
+         ObiligorBank = _payerbank;
+     }
+     
+     function acceptRequest(uint _num)
             public
             onlyObiligorBank
             inStage(Stage.Auctionstart)
       {
+            
             stage = Stage.Auction;
             emit OB(ObiligorBank,_num);
       }
+      
 /// Inform of BPO estiblishment
+      function receivebank(address _receivebank)
+           payable
+           public
+           
+     {
+         //  require(stage >= Stage.Auctionstart );
+           RecipientBank = _receivebank;
+     }
+      
       function BPOestiblishment(uint256 _num)
             public
             onlyRecipientBank
             inStage(Stage.Auction)
       {
-            stage = Stage.Locked;
+           
             emit Inform(RecipientBank, _num, block.timestamp);
       }
 
 
 
 ///transport and invoice data
-    function sendInvoicetobank(uint _id, uint _delivery_date, address _courier, uint _price )
+    function sendInvoicetobank(uint _num, uint _id, uint _delivery_date, string  _courier, uint _price )
             public
             onlyOwner
-            inStage(Stage.Locked)
+            inStage(Stage.Auction)
     {
 
-            shipments[_id] = Shipment(_id,_courier,_price, msg.sender,buyer, _delivery_date);
+            shipments[_id] = Shipment(_id, _courier, _price, owner, buyer, _delivery_date);
 
-            emit InvoiceSent1(buyer, _id, _courier, _price, _delivery_date);
+            emit InvoiceSent1(_num, _id, _courier, _price, block.timestamp);
       }
 
-///transport and invoice data
-    function sendInvoicetobuyer(uint256 _id)
-            public
-            onlyObiligorBank
-            inStage(Stage.Locked)
-    {
-            Shipment memory _ship = shipments[_id];
-            emit InvoiceSent2(owner, _id, _ship.courier, _ship.deliveryprice, block.timestamp);
-    }
+
 
 ///Invoice and shipping documents
-    function sendInvoice(uint _id, uint _num)
+    function sendInvoice(uint _num, uint _id)
             public
-            onlyOwner
-            inStage(Stage.Locked)
+            inStage(Stage.Auction)
     {
-
-            MarketToken memory _goods = marketTokens[_num];
-            Shipment memory _ship = shipments[_id];
-
+            totalprice  = marketTokens[_num].price +  shipments[_id].deliveryprice ;
             /// Trigger the event
-            emit InvoiceSent3(buyer, _num, _goods.quantity, _goods.price, _ship.deliveryprice, _ship.deliverydate);
+            emit InvoiceSent2(buyer, _num, marketTokens[_num].quantity, marketTokens[_num].price, shipments[_id].deliveryprice,shipments[_id].deliverydate, totalprice);
     }
 
 
 ///buyer confirm receive goods
-    function confirmReceived()
+    function confirmReceived(uint _num)
             public
             onlyBuyer
-            inStage(Stage.Locked)
+            inStage(Stage.Auction)
         {
-            stage = Stage.Inactive;
-
+            stage = Stage.Payment;
+            emit ItemReceived(_num);
         }
 ///payment
-    function totalprice(uint _id, uint _num) public view returns(uint){
-            uint _totalprice;
-            MarketToken memory _goods = marketTokens[_num];
-            Shipment memory _ship = shipments[_id];
-            _totalprice  = _goods.price + _ship.deliveryprice ;
+    function banlance()
+          public
+          view
+          onlyRecipientBank
+          returns(uint) 
+          {
+             return(RecipientBank.balance);
+          }
+ 
 
-            return _totalprice;
-    }
-
-    function transferFunds(uint256 _id, uint _num)
+    function transferFunds(uint _num)
             payable
             public
             onlyObiligorBank
-            inStage(Stage.Inactive)
+           inStage(Stage.Payment)
     {
-            require(msg.value >= totalprice(_id,_num));
-            {
-                ObiligorBank.transfer(msg.value);
-                RecipientBank.transfer(ObiligorBank.balance);
-            }
-
-            emit transferFund(_num, totalprice(_id,_num), block.timestamp);
+            
+            RecipientBank.transfer(totalprice);
+            emit transferFund(_num, totalprice,RecipientBank.balance, block.timestamp);
+            
 
     }
 
