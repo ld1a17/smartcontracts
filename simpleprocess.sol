@@ -52,7 +52,7 @@ contract test {
   event RequestSent(address owner, uint num, uint price, address buyer, uint requestdate);
   event OB(address ObiligorBank, uint num);
   event Inform(address RecipientBank, uint num, uint estiblishment_date);
-  event InvoiceSent1(uint num,uint id, string courier, uint deliveryprice, uint deliverydate);
+  event InvoiceSent1(uint num,uint id, string courier, uint deliveryprice,uint totalprice, uint deliverydate);
   event InvoiceSent2(address owner, uint num, uint quantity, uint price,  uint deliveryprice,uint deliverydate,uint totalprice);
   event ItemReceived(uint num);
   event transferFund(uint num, uint value,uint balance, uint time);
@@ -101,6 +101,7 @@ contract test {
         num++;
         require( _price!= 0 && _quantity >=1 && _id != 0);
         marketTokens[num] = MarketToken (_goods, _quantity, _id, _price, msg.sender);
+        /// Trigger the event
         emit goodsinfo(owner, num, _goods, _quantity, _id, _price);
 
     }
@@ -132,7 +133,7 @@ contract test {
          /// Create the order register
             orders[_num] = Buyerorder(_num, _addr, _name);
             stage = Stage.Created;
-
+            /// Trigger the event
             emit PurchaseOrder(owner, _num, msg.sender, block.timestamp);
 
      }
@@ -145,7 +146,7 @@ contract test {
       {
             require(num!=0);
             stage = Stage.Auction;
-
+            /// Trigger the event
             emit ConfirmOrder(msg.sender, _num, buyer, block.timestamp);
       }
 
@@ -208,8 +209,9 @@ contract test {
     {
 
             shipments[_id] = Shipment(_id, _courier, _price, owner, buyer, _delivery_date);
+            totalprice  = marketTokens[_num].price +  _price ;
 
-            emit InvoiceSent1(_num, _id, _courier, _price, block.timestamp);
+            emit InvoiceSent1(_num, _id, _courier, _price, totalprice, block.timestamp);
       }
 
 
@@ -219,8 +221,7 @@ contract test {
             public
             inStage(Stage.Auction)
     {
-            totalprice  = marketTokens[_num].price +  shipments[_id].deliveryprice ;
-            /// Trigger the event
+            
             emit InvoiceSent2(buyer, _num, marketTokens[_num].quantity, marketTokens[_num].price, shipments[_id].deliveryprice,shipments[_id].deliverydate, totalprice);
     }
 
